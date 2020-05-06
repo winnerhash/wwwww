@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-Spyder Editor          2020-05-06
+------------------------------------------------------------------
+Spyder Editor          2020-05-06    
 
-斯小伟 金专1班 VaR的HS、HW、BRW方法预测及回顾测试
 
+
+斯小伟  西南财经大学  金专1班 VaR的HS、HW、BRW方法预测及回顾测试
+------------------------------------------------------------------
 """
 import numpy as np
 import pandas as pd
@@ -18,8 +21,8 @@ list1=[]
 data1=data1.iloc[:,[0,1,2]]
 #---------------------------调整不同的置信度、滚动窗口天数、lamda--------------------------
 confidence=0.99
-window=250
-lamda=0.98
+window=100
+lamda=0.997
 #---------------------------------------------------------------------------------------
 Brw=[]
 HS=[]
@@ -44,15 +47,15 @@ for i in range(window+1,data1.shape[0]):
     datause4=datause4.to_frame()
     datause4.insert(0,'weight',list1)
     datause3=datause4.sort_values(by='Return',ascending=True)
-    for j in range(0,101):
-        if datause3.iloc[0:j,0].sum() >= (1-confidence):
-            Brw.append(datause3.iloc[j,1])
+    for j in range(2,window+2):
+        if datause3.iloc[0:j-1,0].sum() > (1-confidence):
+            Brw.append(datause3.iloc[j-2,1])
             break
 #-------------------------------------VaR backtesting(把下方的Brw,HS,HW替换输入)--------------------------------
 #UC  testing
 r=0
 for i in range(0,data1.shape[0]-window-1):
-    if HW[i]>=data1.iloc[i+101,2]:
+    if Brw[i]>=data1.iloc[i+window+1,2]:
         r=r+1
 p=r/(data1.shape[0]-window-1) #r=T1 
 LRUC = -2*math.log(((confidence**((data1.shape[0]-window-1)-r))*((1-confidence)**r))/(((1-p)**((data1.shape[0]-window-1)-r))*(p**r)),math.e)
@@ -62,13 +65,13 @@ wq=0
 qw=0
 ww=0
 for k in range(0,data1.shape[0]-window-2):
-    if HW[k]<data1.iloc[k+101,2] and HW[k+1]<data1.iloc[k+102,2]:
+    if Brw[k]<data1.iloc[k+window+1,2] and Brw[k+1]<data1.iloc[k+window+2,2]:
         qq=qq+1
-    if HW[k]<data1.iloc[k+101,2] and HW[k+1]>=data1.iloc[k+102,2]:
+    if Brw[k]<data1.iloc[k+window+1,2] and Brw[k+1]>=data1.iloc[k+window+2,2]:
         wq=wq+1
-    if HW[k]>=data1.iloc[k+101,2] and HW[k+1]<data1.iloc[k+102,2]:
+    if Brw[k]>=data1.iloc[k+window+1,2] and Brw[k+1]<data1.iloc[k+window+2,2]:
         qw=qw+1
-    if HW[k]>=data1.iloc[k+101,2] and HW[k+1]>=data1.iloc[k+102,2]:
+    if Brw[k]>=data1.iloc[k+window+1,2] and Brw[k+1]>=data1.iloc[k+window+2,2]:
         ww=ww+1
 PQW=qw/(qq+wq)
 PWW=ww/(wq+ww)
@@ -86,8 +89,22 @@ print('\nLRTest     Value     chi-square(0.99) ',
 X = np.arange(len(HS)) 
 #时间戳转化
 xticklabel = data1.iloc[1+window:data1.shape[0],0].apply(lambda x:str(x.year) + '-' +str(x.month) + '-' +str(x.day))
-xticklabel2=xticklabel.reset_index(drop = True)            #索引重排
-xticks = np.arange(0,len(HS)+1,np.int((len(HS)+1)/10))     #xticks对应要展示的日期对应的索引
+xticklabel2=xticklabel.reset_index(drop = True)
+def pick_arange(arange, num):                #这是一个保留首尾的arange函数，来自于https://www.zhongjianghua.com/att1tude/3236-2020-01.html
+    if num > len(arange):
+        #print("# num out of length, return arange:", end=" ")
+        return arange
+    else:
+        output = np.array([], dtype=arange.dtype)
+        seg = len(arange) / num
+        for n in range(num):
+            if int(seg * (n+1)) >= len(arange):
+                output = np.append(output, arange[-1])
+            else:
+                output = np.append(output, arange[int(seg * n)])
+        #print("# return new arange:", end=' ')
+        return output            #索引重排
+xticks = pick_arange(np.arange(0, len(HS)),10)     #xticks对应要展示的日期对应的索引
 xticklabel3=[]
 for i in range(0,len(xticks)):      #这一步是对要展示的横坐标索引进行日期定位
     gg=xticks[i]
