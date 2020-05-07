@@ -73,7 +73,7 @@ for k in range(0,data1.shape[0]-window-2):
         qw=qw+1
     if Brw[k]>=data1.iloc[k+window+1,2] and Brw[k+1]>=data1.iloc[k+window+2,2]:
         ww=ww+1
-PQW=qw/(qq+wq)
+PQW=qw/(qq+qw)
 PWW=ww/(wq+ww)
 PP=(qw+ww)/(qq+qw+wq+ww)
 LRIND=-2*(math.log(((1-PP)**(qq+wq))*(PP**(qw+ww)),math.e)-math.log(((1-PQW)**qq)*(PQW**qw)*((1-PWW)**wq)*(PWW**ww),math.e))
