@@ -1,0 +1,70 @@
+'''基于换手率的对冲策略
+
+
+背景：换手率是投资者关注的重要指标，若当前股票换手率过低，则表示该股票人气较低，缺少资金入场，爆发的机会不大。而换手率过高，则像一个烫手山芋，该股票可能只拥有短期的炒作或者出现重大风险。因此，选择换手率适中的股票较好。
+基于统计，换手率适中的股票的收益最大，而换手率最高的股票平均收益为负，从而验证了假设。
+策略：持有换手率适中的股票，做空换手率过高的股票
+对冲组合：持有第4组股票，做空第10组股票。
+结果：
+对冲组合历史数据大多数时间收益率均为正，T检验t值达到7.69，比较显著。
+平均月收益达到2.2%。'''
+ 
+ 
+   
+#附python程序：
+import pandas as pd
+import numpy as np
+import scipy.stats as stats
+import os 
+import matplotlib.pyplot as plt
+import matplotlib
+
+path0 = os.getcwd()
+
+f=open('{}\TRD_Mnth.txt'.format(path0))
+csmar_m=pd.read_table(f)
+
+#clean the data 
+csmar_m = csmar_m[['Stkcd','Trdmnt','Mnshrtrd','Mclsprc','Msmvosd','Mretwd']]
+csmar_m=csmar_m[2:]
+csmar_m['Mretwd']=csmar_m['Mretwd'].astype(float)
+csmar_m['Mclsprc']=csmar_m['Mclsprc'].astype(float)
+csmar_m['Mnshrtrd']=csmar_m['Mnshrtrd'].astype(float)
+csmar_m['Msmvosd']=csmar_m['Msmvosd'].astype(float)
+csmar_m['换手率'] =csmar_m.apply(lambda x: x['Mnshrtrd']/(x['Msmvosd']*1000/x['Mclsprc']), axis=1)
+csmar_m['weight0']=csmar_m.groupby('Stkcd')['换手率'].transform(lambda x: x.shift(1))
+csmar_m['date']=pd.to_datetime(csmar_m['Trdmnt'])
+csmar_m= csmar_m[csmar_m['Mretwd'].isnull()==False]
+
+# sorting
+size0= csmar_m.copy()
+size0['rank0']=size0.groupby('date')['换手率'].transform(lambda x: pd.qcut(x, 10, labels= False))
+size0['rank0']= size0['rank0'] +1
+size0['hold_date']=size0['date'] + pd.DateOffset(months=1)
+size0 = size0[['Stkcd','hold_date','rank0','换手率']]
+size0
+# portfolio return 
+port_ret = csmar_m[['Stkcd','date','weight0','Mretwd']].copy()
+port_ret['hold_date']=port_ret['date']
+port_ret = port_ret[(port_ret['Mretwd'].isnull()==False) & (port_ret['weight0'].isnull()==False)]
+port_ret = port_ret[['Stkcd','hold_date','weight0','Mretwd']]
+port0 = pd.merge(port_ret, size0, on=['Stkcd','hold_date'], how='inner')
+port0 = port0[(port0['hold_date'].dt.year>=1997) & (port0['hold_date'].dt.year<=2020)]
+
+#hedge portfolio return
+port1 = port0.groupby(['hold_date','rank0'])[['Mretwd','weight0']].apply(lambda x: np.average(x.Mretwd , weights= x.weight0)).reset_index()
+port1['Mretwd'] = port1[0]
+del port1[0]
+hedge = pd.merge(port1[port1['rank0']==1], port1[port1['rank0']==10], how = 'inner', on=['hold_date'])
+hedge['Mretwd'] = hedge['Mretwd_x'] - hedge['Mretwd_y']
+hedge['rank0'] = hedge['rank0_x'] - hedge['rank0_y']
+hedge = hedge[['hold_date','rank0','Mretwd']]
+port2 = port1.append(hedge)
+
+# test
+a_mean = port2.groupby('rank0')['Mretwd'].mean().reset_index()
+a_t = port2.groupby('rank0')['Mretwd'].apply(lambda x: stats.ttest_1samp(x,0)[0]).reset_index()
+
+# present
+a_mean[a_mean['rank0']>0]['Mretwd'].plot.bar()
+hedge[['Mretwd']].plot.bar()
